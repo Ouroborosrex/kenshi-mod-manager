@@ -1,0 +1,11 @@
+node_modules/
+dist/
+artifacts/
+design/real-library-snapshot.json
+*.log
+release/
+electron/build-info.json
+design/VALIDATION.md
+design/gemini-advice.md
+.env
+.env.*

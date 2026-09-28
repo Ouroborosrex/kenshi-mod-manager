@@ -1,0 +1,94 @@
+name: Release
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing version tag to build (for example v1.0.0)
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            platform: linux
+            executable: release/linux-unpacked/kenshi-mod-manager
+          - os: windows-latest
+            platform: win
+            executable: release/win-unpacked/Kenshi Mod Manager.exe
+    runs-on: ${{ matrix.os }}
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: node scripts/verify-release.mjs
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - name: Build packages
+        run: npm run package -- --${{ matrix.platform }} --x64
+      - name: Test packaged Linux app
+        if: runner.os == 'Linux'
+        env:
+          KMM_PACKAGED_EXECUTABLE: ${{ matrix.executable }}
+        run: xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" npm run test:packaged
+      - name: Test packaged Windows app
+        if: runner.os == 'Windows'
+        env:
+          KMM_PACKAGED_EXECUTABLE: ${{ matrix.executable }}
+        run: npm run test:packaged
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages-${{ matrix.platform }}
+          if-no-files-found: error
+          path: |
+            release/*.AppImage
+            release/*.tar.gz
+            release/*.exe
+            release/*.zip
+  publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: packages-*
+          path: packages
+          merge-multiple: true
+      - name: Create checksums
+        working-directory: packages
+        run: sha256sum *.AppImage *.tar.gz *.exe *.zip > SHA256SUMS.txt
+      - name: Publish release
+        shell: bash
+        run: |
+          if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release create "$RELEASE_TAG" --verify-tag --draft --title "Kenshi Mod Manager $RELEASE_TAG" --notes-file RELEASE_NOTES.md
+          fi
+          gh release upload "$RELEASE_TAG" packages/* --clobber
+          gh release edit "$RELEASE_TAG" --draft=false --latest
