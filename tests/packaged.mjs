@@ -42,6 +42,16 @@ try {
     build.commit.slice(0, 7),
   );
   await expect(page.getByText("Working draft", { exact: true })).toHaveCount(0);
+  // Small desktops and larger UI scales must leave bulk actions accessible.
+  await app.evaluate(({ BrowserWindow }) => {
+    const window = BrowserWindow.getAllWindows()[0];
+    window.setContentSize(1100, 850);
+    window.webContents.setZoomFactor(1.25);
+  });
+  await expect(page.getByLabel("Mod details", { exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "Show mod details", exact: true }).click();
+  await expect(page.getByLabel("Mod details", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Hide mod details", exact: true }).click();
   await page
     .getByRole("button", { name: "Select actions", exact: true })
     .click();

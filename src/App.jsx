@@ -106,12 +106,22 @@ export default function App() {
   const [history, setHistory] = useState([]),
     [future, setFuture] = useState([]),
     [scale, setScale] = useState(1.25);
-  const [details, setDetails] = useState(true),
+  const [details, setDetails] = useState(
+      () => !window.matchMedia("(max-width: 980px)").matches,
+    ),
     [afterTarget, setAfterTarget] = useState(""),
     [jump, setJump] = useState("");
   const [sessionStatus, setSessionStatus] = useState("Saved locally");
   const searchRef = useRef(null),
     dragId = useRef(null);
+  useEffect(() => {
+    const compact = window.matchMedia("(max-width: 980px)");
+    const hideOverlay = (event) => {
+      if (event.matches) setDetails(false);
+    };
+    compact.addEventListener("change", hideOverlay);
+    return () => compact.removeEventListener("change", hideOverlay);
+  }, []);
   function installSnapshot(next, reset = false) {
     setState(next);
     setScale(next.scale || 1.25);
