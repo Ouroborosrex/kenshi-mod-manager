@@ -126,7 +126,7 @@ export function classification(mod, rule = {}) {
     confidence: "Default",
   };
 }
-export function buildGraph(draft, mods) {
+export function buildGraph(draft, mods, analysis = null) {
   const active = draft.entries.filter((e) => e.enabled);
   const byId = new Map(mods.map((m) => [m.id, m]));
   const entries = new Map(draft.entries.map((e) => [e.id, e]));
@@ -185,7 +185,28 @@ export function buildGraph(draft, mods) {
       else add(key(after), entry.id, `Your rule: load after ${after}`);
     }
   }
+  for (const edge of analysis?.inferred || [])
+    add(
+      edge.from,
+      edge.to,
+      `Record dependency: ${byId.get(edge.from)?.name || edge.from} supplies ${edge.count} used or edited records (${edge.examples[0]})`,
+    );
+  // Preserve incomplete files against name hints, but do not invent hard rules
+  // that prevent a real record dependency from being repaired.
+  const opaque = new Set(analysis?.opaque || []);
+  const anchors = [];
   active.forEach((entry, i) => {
+    if (opaque.has(entry.id)) {
+      active.forEach((other, j) => {
+        if (j === i) return;
+        anchors.push({
+          from: j < i ? other.id : entry.id,
+          to: j < i ? entry.id : other.id,
+          count: 1,
+          example: "Incomplete scan: preserve existing relative position",
+        });
+      });
+    }
     if (!draft.rules[entry.id]?.pinned) return;
     active.forEach((other, j) => {
       if (j < i) edges.get(other.id).add(entry.id);
@@ -195,7 +216,32 @@ export function buildGraph(draft, mods) {
       .get(entry.id)
       .push("Pinned: keep its position and prevent other mods crossing it");
   });
-  return { active, edges, issues, reasons, byId, position };
+  const relaxed = [];
+  const reaches = (start, target) => {
+    const seen = new Set(),
+      pending = [start];
+    while (pending.length) {
+      const id = pending.pop();
+      if (id === target) return true;
+      if (seen.has(id)) continue;
+      seen.add(id);
+      for (const next of edges.get(id) || []) pending.push(next);
+    }
+    return false;
+  };
+  for (const edge of [...anchors, ...(analysis?.protections || [])]) {
+    if (!ids.has(edge.from) || !ids.has(edge.to)) continue;
+    if (reaches(edge.to, edge.from)) {
+      relaxed.push(edge);
+      continue;
+    }
+    add(
+      edge.from,
+      edge.to,
+      `Preserve existing overwrite order with ${byId.get(edge.from)?.name || edge.from}: ${edge.example}`,
+    );
+  }
+  return { active, edges, issues, reasons, byId, position, relaxed };
 }
 // Iterative DFS avoids stack exhaustion for very large user lists.
 function cycleMembers(edges, remaining) {
@@ -274,11 +320,9 @@ class Heap {
     return out;
   }
 }
-export function sortDraft(draft, mods) {
-  const { active, edges, issues, reasons, byId, position } = buildGraph(
-    draft,
-    mods,
-  );
+export function sortDraft(draft, mods, analysis = null) {
+  const { active, edges, issues, reasons, byId, position, relaxed } =
+    buildGraph(draft, mods, analysis);
   const classes = new Map(
     active.map((e) => [
       e.id,
@@ -314,9 +358,10 @@ export function sortDraft(draft, mods) {
       ok: false,
       cycle,
       issues,
+      relaxed,
       moves: [],
       message:
-        "These dependencies, references or pinned positions contradict each other. Adjust a rule or unpin a mod, then try again.",
+        "These dependencies, record dependencies or fixed positions contradict each other. Review the named mods, adjust a rule or unpin a mod, then try again.",
     };
   }
   const entriesById = new Map(active.map((e) => [e.id, e]));
@@ -346,6 +391,7 @@ export function sortDraft(draft, mods) {
     draft: { ...draft, entries },
     moves,
     issues,
+    relaxed,
     patchCount: [...classes.values()].filter((c) => c.kind !== "normal").length,
   };
 }

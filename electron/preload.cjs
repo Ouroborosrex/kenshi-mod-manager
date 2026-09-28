@@ -8,6 +8,8 @@ const methods = [
   "loadProfile",
   "deleteProfile",
   "apply",
+  "analyze",
+  "conflicts",
   "scale",
   "chooseGame",
   "import",

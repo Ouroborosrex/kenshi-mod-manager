@@ -30,7 +30,8 @@ import {
   PanelRightClose,
   PanelRightOpen,
 } from "lucide-react";
-import { buildGraph, classification, key, sortDraft } from "../core/order.mjs";
+import { buildGraph, classification, key } from "../core/order.mjs";
+import OverwriteReview from "./OverwriteReview.jsx";
 const api = window.manager;
 const displayName = (name) => name.replace(/\.mod$/i, "");
 const copy = (value) => structuredClone(value);
@@ -114,6 +115,8 @@ export default function App() {
   const [sessionStatus, setSessionStatus] = useState("Saved locally");
   const searchRef = useRef(null),
     dragId = useRef(null);
+  const analysisRequest = useRef(0);
+  const [reviewedOverwrites, setReviewedOverwrites] = useState(false);
   useEffect(() => {
     const compact = window.matchMedia("(max-width: 980px)");
     const hideOverlay = (event) => {
@@ -319,6 +322,41 @@ export default function App() {
     } finally {
       setBusy("");
     }
+  }
+  async function previewSort(next = draft) {
+    const request = ++analysisRequest.current;
+    setReviewedOverwrites(false);
+    setModal({ type: "scanning" });
+    await run("Reading mod records", async () => {
+      const result = await api.analyze(next);
+      if (analysisRequest.current === request)
+        setModal({ type: "sort", result });
+    });
+  }
+  async function preferOverwrite(id, writers) {
+    const current = draft.rules[id] || blankRule;
+    const next = {
+      ...draft,
+      rules: {
+        ...draft.rules,
+        [id]: {
+          ...current,
+          after: [
+            ...new Set([
+              ...current.after,
+              ...writers
+                .filter((other) => other !== id)
+                .map((other) => mods.get(other)?.name || other),
+            ]),
+          ],
+        },
+      },
+    };
+    commit(
+      next,
+      "Load-after rule added. Review its effect on other records before applying.",
+    );
+    await previewSort(next);
   }
   function saveList(asNew = false) {
     setProfileName(asNew ? "" : profile?.name || "My Kenshi list");
@@ -544,12 +582,7 @@ export default function App() {
               Save list
             </button>
             <button
-              onClick={() =>
-                setModal({
-                  type: "sort",
-                  result: sortDraft(draft, [...mods.values()]),
-                })
-              }
+              onClick={() => previewSort()}
               disabled={!!busy || !active.length}
             >
               <ArrowDownUp />
@@ -1212,6 +1245,23 @@ export default function App() {
           )}
         </Modal>
       )}
+      {modal?.type === "scanning" && (
+        <Modal
+          title="Reading mod records"
+          onClose={() => {
+            analysisRequest.current++;
+            setModal(null);
+          }}
+        >
+          <p>
+            Checking fields, equipment and vendor lists, and record
+            dependencies. Large libraries may take a few seconds.
+          </p>
+          <p className="helper">
+            You can close this window; no load order changes will be accepted.
+          </p>
+        </Modal>
+      )}
       {modal?.type === "sort" && (
         <Modal
           wide
@@ -1225,7 +1275,13 @@ export default function App() {
               <button onClick={() => setModal(null)}>Cancel</button>
               <button
                 className="primary"
-                disabled={!modal.result.ok || !modal.result.moves.length}
+                disabled={
+                  !modal.result.ok ||
+                  !modal.result.moves.length ||
+                  ((modal.result.analysis.changedCount > 0 ||
+                    modal.result.analysis.summary.incomplete.length > 0) &&
+                    !reviewedOverwrites)
+                }
                 onClick={() => {
                   commit(
                     modal.result.draft,
@@ -1241,10 +1297,95 @@ export default function App() {
           }
         >
           <p>
-            Dependencies and active references first. Patches late. Your pins
-            and load-after rules are respected; unrelated mods keep their
-            relative order within the same sorting group.
+            Dependencies and records a mod needs load first. Existing overwrite
+            order is preserved where those dependencies and your rules allow it.
+            Patch labels only move mods where they will not change those
+            choices.
           </p>
+          <div className="sort-summary">
+            <span>
+              <strong>{modal.result.analysis.summary.scanned}</strong> /{" "}
+              {modal.result.analysis.summary.total} files read
+            </span>
+            <span>
+              <strong>{modal.result.analysis.inferred.length}</strong> record
+              dependency links
+            </span>
+            <span>
+              <strong>
+                {modal.result.analysis.changedCount.toLocaleString()}
+              </strong>{" "}
+              overwrite values change
+            </span>
+          </div>
+          {(modal.result.analysis.changedCount > 0 ||
+            modal.result.analysis.summary.incomplete.length > 0) && (
+            <div className="record-review-warning">
+              <p>
+                {modal.result.analysis.changedCount > 0
+                  ? "Dependencies or your rules require changing existing overwrite choices. Review the affected records below."
+                  : "Some files could not be fully analyzed. Their positions are kept where possible."}
+              </p>
+              {modal.result.analysis.summary.incomplete.length > 0 && (
+                <details>
+                  <summary>
+                    Scan limitations (
+                    {modal.result.analysis.summary.incomplete.length})
+                  </summary>
+                  <ul>
+                    {modal.result.analysis.summary.incomplete.map((item, i) => (
+                      <li key={i}>
+                        <strong>{mods.get(item.id)?.name || item.id}</strong>:{" "}
+                        {item.message}
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+              <label>
+                <input
+                  type="checkbox"
+                  checked={reviewedOverwrites}
+                  onChange={(e) => setReviewedOverwrites(e.target.checked)}
+                />{" "}
+                I reviewed the overwrite changes and scan limitations
+              </label>
+            </div>
+          )}
+          {modal.result.analysis.issues.length > 0 && (
+            <details className="record-issues">
+              <summary>
+                Record dependency warnings (
+                {modal.result.analysis.issues.length})
+              </summary>
+              <ul>
+                {modal.result.analysis.issues.map((issue, i) => (
+                  <li key={i}>
+                    <strong>{mods.get(issue.id)?.name || issue.id}</strong>:{" "}
+                    {issue.message} ({issue.count})
+                    <small>{issue.examples.join(" · ")}</small>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+          {modal.result.analysis.inferred.length > 0 && (
+            <details className="record-issues">
+              <summary>
+                Detected record dependencies (
+                {modal.result.analysis.inferred.length})
+              </summary>
+              <ul>
+                {modal.result.analysis.inferred.map((edge, i) => (
+                  <li key={i}>
+                    <strong>{mods.get(edge.from)?.name || edge.from}</strong>{" "}
+                    before <strong>{mods.get(edge.to)?.name || edge.to}</strong>
+                    <small>{edge.examples.join(" · ")}</small>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
           {!modal.result.ok ? (
             <div className="cycle-warning">
               <h3>
@@ -1277,9 +1418,9 @@ export default function App() {
                 </span>
               </div>
               <p className="helper">
-                Patch labels are hints, not a guarantee of compatibility. This
-                does not inspect conflicts inside game records. Override a
-                misclassified mod in its details.
+                This reads .mod records. It does not check textures, meshes,
+                external level files, scripts, or existing save state. Sorting
+                cannot merge incompatible edits or restore missing assets.
               </p>
               {modal.result.issues.some((i) => i.type !== "order") && (
                 <div className="inline-warning">
@@ -1291,34 +1432,47 @@ export default function App() {
                   install or enable missing requirements.
                 </div>
               )}
-              <div className="sort-table">
-                <div className="sort-row sort-head">
-                  <span>Mod</span>
-                  <span>Before</span>
-                  <span>After</span>
-                </div>
-                {modal.result.moves.map((move) => (
-                  <div className="sort-row" key={move.id}>
-                    <div>
-                      <strong>{displayName(move.name)}</strong>
-                      <small>{move.reason}</small>
+              <details
+                className="sort-moves"
+                open={modal.result.analysis.conflictCount === 0}
+              >
+                <summary>
+                  Load order changes ({modal.result.moves.length})
+                </summary>
+                <div className="sort-table">
+                  <div className="sort-row sort-head">
+                    <span>Mod</span>
+                    <span>Before</span>
+                    <span>After</span>
+                  </div>
+                  {modal.result.moves.map((move) => (
+                    <div className="sort-row" key={move.id}>
+                      <div>
+                        <strong>{displayName(move.name)}</strong>
+                        <small>{move.reason}</small>
+                      </div>
+                      <span>{move.from}</span>
+                      <span className={move.kind !== "normal" ? "accent" : ""}>
+                        {move.to}
+                      </span>
                     </div>
-                    <span>{move.from}</span>
-                    <span className={move.kind !== "normal" ? "accent" : ""}>
-                      {move.to}
-                    </span>
-                  </div>
-                ))}
-                {!modal.result.moves.length && (
-                  <div className="empty-state">
-                    <Check />
-                    <h3>No changes needed</h3>
-                    <p>Your order already meets these rules.</p>
-                  </div>
-                )}
-              </div>
+                  ))}
+                  {!modal.result.moves.length && (
+                    <div className="empty-state">
+                      <Check />
+                      <h3>No changes needed</h3>
+                      <p>Your order already meets these rules.</p>
+                    </div>
+                  )}
+                </div>
+              </details>
             </>
           )}
+          <OverwriteReview
+            analysis={modal.result.analysis}
+            mods={mods}
+            onPrefer={preferOverwrite}
+          />
         </Modal>
       )}
       {modal?.type === "apply" && (

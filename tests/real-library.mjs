@@ -84,7 +84,7 @@ try {
   await page.getByRole("button", { name: "Autosort", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Accept order", exact: true }),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 30000 });
   await capture("artifacts/real-autosort.png");
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   // Check every scale at a smaller desktop size for horizontal overflow.

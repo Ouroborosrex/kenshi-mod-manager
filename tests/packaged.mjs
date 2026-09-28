@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import assert from "node:assert/strict";
+import { modFile, baseFiles } from "./mod-fixture.mjs";
 if (!process.env.KMM_PACKAGED_EXECUTABLE)
   throw new Error(
     "Set KMM_PACKAGED_EXECUTABLE to the packaged application executable.",
@@ -10,14 +11,11 @@ if (!process.env.KMM_PACKAGED_EXECUTABLE)
 const build = JSON.parse(await fs.readFile("electron/build-info.json", "utf8"));
 const root = await fs.mkdtemp(path.join(os.tmpdir(), "kmm-packaged-"));
 const game = path.join(root, "steamapps/common/Kenshi");
-await fs.mkdir(path.join(game, "data"), { recursive: true });
+await baseFiles(game);
 await fs.mkdir(path.join(game, "mods/Test"), { recursive: true });
 const config = path.join(game, "data/mods.cfg");
 await fs.writeFile(config, "Test.mod\n");
-const header = Buffer.alloc(24);
-header.writeUInt32LE(16);
-header.writeUInt32LE(1, 4);
-await fs.writeFile(path.join(game, "mods/Test/Test.mod"), header);
+await fs.writeFile(path.join(game, "mods/Test/Test.mod"), modFile());
 const app = await electron.launch({
   executablePath: path.resolve(process.env.KMM_PACKAGED_EXECUTABLE),
   args: ["--disable-gpu"],
@@ -49,9 +47,22 @@ try {
     window.webContents.setZoomFactor(1.25);
   });
   await expect(page.getByLabel("Mod details", { exact: true })).toHaveCount(0);
-  await page.getByRole("button", { name: "Show mod details", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Show mod details", exact: true })
+    .click();
   await expect(page.getByLabel("Mod details", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Hide mod details", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Hide mod details", exact: true })
+    .click();
+  // Workers must launch from the packaged ASAR on both platforms.
+  await page.getByRole("button", { name: "Autosort", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Review autosort" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: "Record overwrites" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
   await page
     .getByRole("button", { name: "Select actions", exact: true })
     .click();

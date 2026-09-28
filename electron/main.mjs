@@ -90,6 +90,8 @@ else {
       handle("loadProfile", (id) => store.loadProfile(id));
       handle("deleteProfile", (id) => store.deleteProfile(id));
       handle("apply", (data) => store.apply(data));
+      handle("analyze", (draft) => store.analyze(draft));
+      handle("conflicts", (query) => store.conflictPage(query));
       handle("scale", async (scale) => {
         await store.setScale(scale);
         window.webContents.setZoomFactor(scale);

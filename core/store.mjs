@@ -3,6 +3,7 @@ import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { normalizeDraft, parseConfig } from "./order.mjs";
 import { discoverGame, scanLibrary } from "./library.mjs";
+import { Worker } from "node:worker_threads";
 
 export const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
 export async function atomicWrite(file, content) {
@@ -114,6 +115,95 @@ export class Store {
       JSON.stringify(this.settings, null, 2),
     );
     return this.snapshot({ fromGame: true });
+  }
+  async analyze(draft) {
+    draft = normalizeDraft(draft);
+    if (!this.gamePath) throw new Error("Choose a Kenshi folder first.");
+    return new Promise((resolve, reject) => {
+      const worker = new Worker(
+        new URL("./analyze-worker.mjs", import.meta.url),
+        {
+          workerData: { gamePath: this.gamePath, draft },
+          execArgv: [],
+          resourceLimits: { maxOldGenerationSizeMb: 1536 },
+        },
+      );
+      let settled = false;
+      const finish = (error, value) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        worker.terminate();
+        if (error) reject(error);
+        else resolve(value);
+      };
+      const timeout = setTimeout(
+        () =>
+          finish(
+            new Error("Record scan took too long. Try a smaller enabled list."),
+          ),
+        120000,
+      );
+      worker.once("message", (message) => {
+        if (!message.ok) {
+          finish(new Error(message.error));
+          return;
+        }
+        const result = message.value;
+        const conflicts = result.analysis.conflicts;
+        const names = new Map(draft.entries.map((e) => [e.id, e.name]));
+        this.analysisReport = {
+          token: randomUUID(),
+          conflicts,
+          search: conflicts.map((c) =>
+            [
+              c.name,
+              c.type,
+              c.recordId,
+              c.field,
+              ...c.writers.map((w) => names.get(w.mod) || w.mod),
+            ]
+              .join("\n")
+              .toLowerCase(),
+          ),
+        };
+        delete result.analysis.conflicts;
+        result.analysis.token = this.analysisReport.token;
+        result.analysis.conflictCount = conflicts.length;
+        finish(null, result);
+      });
+      worker.once("error", (error) => finish(error));
+      worker.once("exit", (code) => {
+        if (!settled)
+          finish(new Error(`Record scan stopped unexpectedly (${code}).`));
+      });
+    });
+  }
+  conflictPage({ token, query = "", changedOnly = false, offset = 0 } = {}) {
+    const report = this.analysisReport;
+    if (!report || token !== report.token)
+      throw new Error("This scan has expired. Run autosort again.");
+    if (
+      typeof query !== "string" ||
+      query.length > 500 ||
+      !Number.isSafeInteger(offset) ||
+      offset < 0
+    )
+      throw new Error("Invalid conflict search.");
+    const q = query.trim().toLowerCase(),
+      results = [];
+    let total = 0;
+    for (let i = 0; i < report.conflicts.length; i++) {
+      const conflict = report.conflicts[i];
+      if (
+        (changedOnly && !conflict.changed) ||
+        (q && !report.search[i].includes(q))
+      )
+        continue;
+      if (total >= offset && results.length < 20) results.push(conflict);
+      total++;
+    }
+    return { total, results };
   }
   async saveSession(payload) {
     const draft = normalizeDraft(payload.draft);

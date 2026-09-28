@@ -3,9 +3,10 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import assert from "node:assert/strict";
+import { modFile, baseFiles } from "./mod-fixture.mjs";
 const root = await fs.mkdtemp(path.join(os.tmpdir(), "kenshi-manager-ui-"));
 const game = path.join(root, "steamapps/common/Kenshi");
-await fs.mkdir(path.join(game, "data"), { recursive: true });
+await baseFiles(game);
 const names = [
   "Desert Gear - Compatibility Patch.mod",
   "Desert Gear.mod",
@@ -15,21 +16,11 @@ const names = [
   "Dark UI.mod",
 ];
 function header(name) {
-  const nums = Buffer.alloc(8);
-  nums.writeUInt32LE(16);
-  nums.writeUInt32LE(1, 4);
-  const strings = [
-    "Test Author",
-    `${name} brings new things to the wasteland.`,
-    name.includes("Patch") ? "Desert Gear.mod" : "",
-    "",
-  ].flatMap((s) => {
-    const b = Buffer.from(s);
-    const l = Buffer.alloc(4);
-    l.writeUInt32LE(b.length);
-    return [l, b];
+  return modFile({
+    author: "Test Author",
+    description: `${name} brings new things to the wasteland.`,
+    dependencies: name.includes("Patch") ? "Desert Gear.mod" : "",
   });
-  return Buffer.concat([nums, ...strings]);
 }
 for (const name of names) {
   const dir = path.join(game, "mods", name.slice(0, -4));
@@ -135,6 +126,11 @@ try {
     page.getByRole("heading", { name: "Review autosort" }),
   ).toBeVisible();
   await capture("artifacts/sort-preview.png");
+  await page
+    .getByRole("checkbox", {
+      name: "I reviewed the overwrite changes and scan limitations",
+    })
+    .check();
   await page.getByRole("button", { name: "Accept order" }).click();
   assert.equal(
     await fs.readFile(path.join(game, "data/mods.cfg"), "utf8"),
@@ -149,7 +145,7 @@ try {
   ).toBeVisible();
   const applied = await fs.readFile(path.join(game, "data/mods.cfg"), "utf8");
   assert.equal(
-    applied.trim().split("\n").at(-1),
+    applied.trim().split("\n").at(-2),
     "Desert Gear - Compatibility Patch.mod",
   );
   const backups = await fs.readdir(path.join(root, "state/backups"));

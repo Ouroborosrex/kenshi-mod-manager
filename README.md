@@ -2,7 +2,7 @@
 
 A desktop mod manager for Kenshi on Windows and Linux.
 
-Save and switch mod lists, reorder mods, and preview an autosort that puts patches after their dependencies. Includes search, bulk enable/disable, custom ordering rules, undo, and adjustable UI size.
+Save and switch mod lists, reorder mods, and preview an autosort that reads mod records and dependencies. Includes search, bulk enable/disable, custom ordering rules, undo, and adjustable UI size.
 
 [Download the latest release](https://github.com/Ouroborosrex/kenshi-mod-manager/releases/latest).
 
@@ -11,7 +11,9 @@ Save and switch mod lists, reorder mods, and preview an autosort that puts patch
 
 The app finds Steam installations automatically. You can also choose your Kenshi folder. Changes reach the game only when you click **Apply to game**, which backs up `mods.cfg` first. Keep Kenshi's launcher closed while applying.
 
-Autosort uses mod metadata and patch-name hints. It cannot resolve every conflict; review the proposed order and override individual rules when needed.
+Autosort compares fields and equipment/vendor-list entries, finds record dependencies, and preserves existing overwrite choices where possible. Search the preview to see which mod writes each conflicting value, or add a rule to prefer another mod. Changes to winning values require review.
+
+It cannot decide every conflict or fix missing meshes, textures, or saved-game state. To recover an older order, import a CFG from your backups folder under **Settings & backups**. [Analysis details and limits](design/RECORDS.md).
 
 ## Build
 

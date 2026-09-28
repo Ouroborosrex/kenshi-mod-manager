@@ -4,6 +4,8 @@
 A desktop workbench, not a dashboard. Warm neutral surfaces, restrained ochre accent, ordinary title bar. Large typography and persistent 100–175% UI scale. Saved lists left, ordered mod table center, selection details right. No game files change until Apply to game. Working drafts autosave separately. Applying backs up the existing bytes and refuses an external-change race. Import/export standard mods.cfg or rich portable JSON. Undo is for edits in the session, not an implicit rewrite of game files.
 
 ## Sort specification
+The record-aware extension and current conflict behavior are specified in [RECORDS.md](RECORDS.md). The following describes the original metadata-only baseline.
+
 Input: complete ordered entries with enabled state, parsed dependencies/references, patch overrides, user after-rules, and pinned positions. Output: a permutation of enabled entries, preserving disabled entries in their existing slots, or a cycle diagnostic. Never enable/disable mods or remove missing entries during sorting.
 
 Hard edges: dependency -> dependent for active declared dependencies; active reference -> referring mod; user load-after; original preceding/following entries -> pinned anchor -> following entries. Base-game files are excluded. Name resolution is exact, case-insensitive; no substring matching. Missing hard requirements and disabled requirements are diagnosed separately. References are optional if not active.

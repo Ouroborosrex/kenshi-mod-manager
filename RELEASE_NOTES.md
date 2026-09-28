@@ -1,14 +1,12 @@
-Saved mod lists, manual ordering, and patch-aware autosort for Kenshi.
+Autosort now reads the records inside .mod files.
 
-- Dark interface with adjustable size, search, and bulk enable/disable.
-- Saved lists and JSON/CFG import and export.
-- Sorting previews, dependency warnings, pins, and custom load-after rules.
-- Undo and automatic backups before applying a load order.
-- Version and source commit shown in the lower-left corner.
+- Detects field overwrites, equipment/vendor-list changes, and removal markers.
+- Finds dependencies from records that mods edit or reference, even when the header omits them.
+- Preserves existing overwrite order where dependencies and your rules allow it. Patch names no longer take priority over these choices.
+- Search conflicting records and values, see the last writer before/after sorting, and add a load-after rule to prefer another mod.
+- Requires review when a sort changes winning values or a scan is incomplete.
+- Reports missing providers, duplicate definitions, and unsupported data.
 
-Windows: use the setup .exe or extract the portable .zip.
-Linux: make the AppImage executable, or extract the .tar.gz and run kenshi-mod-manager.
+Sorting cannot recover a previously working order by itself. Import an earlier CFG backup if that is the order you want to preserve. Meshes, textures, external level files and saved-game state are not analyzed. Whole-record deletions and incompatible mods may need a compatibility patch.
 
-These builds are unsigned. Windows may show a publisher warning. SHA-256 checksums are included.
-
-Autosort does not guarantee mod compatibility. Review its preview before applying.
+Windows: setup .exe or portable .zip. Linux: AppImage or .tar.gz. Builds are unsigned; SHA-256 checksums are included.

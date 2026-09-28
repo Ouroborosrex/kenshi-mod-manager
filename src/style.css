@@ -1051,6 +1051,135 @@ kbd {
   font-size: 11px;
   color: var(--muted);
 }
+.record-review-warning {
+  margin-block: 16px;
+  padding: 14px;
+  border: 1px solid #786343;
+  border-radius: 5px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.record-review-warning label,
+.overwrite-tools label {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.record-review-warning label {
+  margin-top: 14px;
+}
+.record-issues {
+  margin-block: 16px;
+  font-size: 13px;
+}
+.record-issues ul {
+  max-height: 220px;
+  overflow: auto;
+  padding-left: 22px;
+}
+.record-issues li {
+  margin-bottom: 12px;
+  overflow-wrap: anywhere;
+}
+.record-issues small {
+  display: block;
+  color: var(--muted);
+}
+.overwrite-review {
+  border-top: 1px solid var(--line);
+  margin-top: 24px;
+  padding-top: 14px;
+}
+.overwrite-review h3 {
+  font-size: 17px;
+}
+.overwrite-tools {
+  display: grid;
+  gap: 10px;
+  margin-block: 16px;
+  font-size: 13px;
+}
+.overwrite-tools input:not([type="checkbox"]) {
+  width: 100%;
+}
+.overwrite-card {
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  margin-block: 14px;
+  overflow: hidden;
+}
+.overwrite-card > header {
+  padding: 12px 14px;
+  gap: 10px;
+  font-size: 13px;
+  flex-wrap: wrap;
+}
+.overwrite-card > header > span {
+  color: var(--muted);
+  font-size: 11px;
+}
+.overwrite-card > header > strong {
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+.overwrite-field {
+  margin: 12px 14px 5px;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.record-id {
+  display: block;
+  margin: 0 14px 12px;
+  color: var(--muted);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.overwrite-card > .helper {
+  margin-inline: 14px;
+}
+.overwrite-value {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 9px 14px;
+  padding: 12px 14px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+}
+.overwrite-value.winning {
+  background: #30372a;
+}
+.overwrite-value strong,
+.overwrite-value small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.overwrite-value small {
+  color: var(--muted);
+  margin-top: 5px;
+}
+.overwrite-value code {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.overwrite-value button {
+  grid-column: 1 / -1;
+  justify-self: start;
+  font-size: 11px;
+  min-height: 30px;
+  padding: 5px 8px;
+}
+.overwrite-pagination {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+}
+.overwrite-pagination span {
+  margin-right: auto;
+}
+.overwrite-pagination button {
+  font-size: 12px;
+}
 .summary-line {
   margin: 20px 0;
   display: flex;
